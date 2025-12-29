@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Code Sync Studio MVP - Demo</title>
+
+<!-- ==================== Pyodide ==================== -->
+<script src="https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js"></script>
+
+<!-- ==================== ESTILOS ==================== -->
+<style>
+/* ==================== Geral ==================== */
+body {
+  margin: 0;
+  padding: 20px;
+  font-family: sans-serif;
+}
+textarea {
+  flex: 1 1 48%;
+  min-width: 100px;
+  height: 150px;
+  font-family: monospace;
+  font-size: 14px;
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid #555;
+  resize: vertical;
+}
+.code-container {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.buttons-container {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.buttons-container button {
+  flex: 1 1 150px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background-color 0.3s, transform 0.1s;
+}
+
+/* ==================== Cores dos botões ==================== */
+.btn-js { background-color: #00bfff; color: #fff; }
+.btn-js:hover { background-color: #009acd; transform: scale(1.05); }
+
+.btn-python { background-color: #32cd32; color: #fff; }
+.btn-python:hover { background-color: #28a428; transform: scale(1.05); }
+
+.btn-all { background-color: #8000ff; color: #fff; }
+.btn-all:hover { background-color: #6600cc; transform: scale(1.05); }
+
+.btn-clear { background-color: #ff8c00; color: #fff; }
+.btn-clear:hover { background-color: #e67600; transform: scale(1.05); }
+
+.btn-theme { background-color: #888; color: #fff; }
+.btn-theme:hover { background-color: #666; transform: scale(1.05); }
+
+.btn-copy { background-color: #20b2aa; color: #fff; }
+.btn-copy:hover { background-color: #178f87; transform: scale(1.05); }
+
+/* ==================== Output ==================== */
+#all-output {
+  font-family: monospace;
+  font-size: 14px;
+  line-height: 1.5;
+  padding: 12px;
+  height: 300px;
+  overflow-y: auto;
+  border: 2px solid;
+  border-radius: 8px;
+  white-space: pre-wrap;
+  counter-reset: line;
+  transition: background-color 0.3s, color 0.3s, border-color 0.3s;
+  scroll-behavior: smooth;
+}
+#all-output span {
+  display: block;
+  padding-left: 5px;
+  position: relative;
+  opacity: 0;
+  animation: fadeIn 0.3s forwards;
+}
+#all-output span::before {
+  counter-increment: line;
+  content: counter(line);
+  position: absolute;
+  left: -40px;
+  width: 30px;
+  text-align: right;
+  color: #888;
+}
+.js { color: #00ffff; }
+.python { color: #7CFC00; }
+.error { color: #ff4c4c; transition: background-color 0.5s; }
+.highlight-temp { background-color: rgba(255,255,0,0.3); transition: background-color 1s ease; }
+
+@keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+
+/* ==================== Tema escuro/claro ==================== */
+body.dark { background-color: #121212; color: #eee; }
+body.dark textarea { background-color: #2c2c2c; color: #eee; border-color: #555; }
+body.dark #all-output { background-color: #1f1f1f; border-color: #444; color: #eee; }
+
+body.light { background-color: #f4f4f4; color: #222; }
+body.light textarea { background-color: #fff; color: #222; border-color: #ccc; }
+body.light #all-output { background-color: #fff; border-color: #bbb; color: #222; }
+
+/* ==================== Responsivo ==================== */
+@media(max-width:768px) {
+  textarea { flex:1 1 100%; }
+  .buttons-container button { flex:1 1 100%; }
+}
+</style>
+</head>
+
+<body>
+
+<!-- ==================== Área de código ==================== -->
+<div class="code-container">
+  <textarea id="js-code">// Exemplo JS
+console.log("Olá do JavaScript!");
+for(let i=1;i<=5;i++){console.log("JS linha "+i);}</textarea>
+
+  <textarea id="python-code"># Exemplo Python
+print("Olá do Python!")
+for i in range(1,6):
+    print("Python linha", i)</textarea>
+</div>
+
+<!-- ==================== Botões ==================== -->
+<div class="buttons-container">
+  <button id="run-js" class="btn-js">Rodar JS</button>
+  <button id="run-python" class="btn-python">Rodar Python</button>
+  <button id="run-all" class="btn-all">Rodar Tudo</button>
+  <button id="clear-output" class="btn-clear">Limpar Output</button>
+  <button id="toggle-theme" class="btn-theme">Alternar Tema</button>
+  <button id="copy-output" class="btn-copy">Copiar Output</button>
+</div>
+
+<!-- ==================== Output ==================== -->
+<div id="all-output"></div>
+
+<!-- ==================== Script ==================== -->
+<script>
+/* -------------------- Configurações iniciais -------------------- */
+const jsCodeTextarea = document.getElementById("js-code");
+const pythonCodeTextarea = document.getElementById("python-code");
+const outputDiv = document.getElementById("all-output");
+let darkTheme = true;
+document.body.classList.add("dark");
+
+/* -------------------- Funções utilitárias -------------------- */
+function highlightError(span) {
+  span.style.backgroundColor = "rgba(255,76,76,0.3)";
+  setTimeout(() => { span.style.backgroundColor = "transparent"; }, 2000);
+}
+
+let outputQueue = [];
+let isPrinting = false;
+
+function logOutput(text, type="js", isError=false) {
+  outputQueue.push({text,type,isError});
+  if(!isPrinting) processQueue();
+}
+
+function processQueue() {
+  if(outputQueue.length===0){ isPrinting=false; return; }
+  isPrinting=true;
+
+  const {text,type,isError} = outputQueue.shift();
+  const span = document.createElement("span");
+  span.className = isError?"error":type;
+  span.innerText = `[${type.toUpperCase()}] ${text}`;
+  outputDiv.appendChild(span);
+
+  if(isError) highlightError(span);
+
+  span.classList.add("highlight-temp");
+  setTimeout(()=>span.classList.remove("highlight-temp"),1000);
+
+  outputDiv.scrollTop = outputDiv.scrollHeight;
+  setTimeout(processQueue,50);
+}
+
+/* -------------------- Execução JS -------------------- */
+function runJS() {
+  logOutput("Executando...","js");
+  const originalLog = console.log;
+  console.log = function(...args) { logOutput(args.join(" "),"js"); originalLog.apply(console,args); };
+  try { new Function(jsCodeTextarea.value)(); }
+  catch(err) { logOutput("Erro: "+err,"error",true); }
+  console.log = originalLog;
+}
+
+/* -------------------- Execução Python -------------------- */
+let pyodideReady = false;
+let pyodide;
+
+async function initPyodide() {
+  pyodide = await loadPyodide();
+  pyodideReady = true;
+}
+initPyodide();
+
+async function runPython() {
+  if(!pyodideReady){ logOutput("Carregando Python...","python"); return; }
+  try {
+    const result = await pyodide.runPythonAsync(pythonCodeTextarea.value);
+    logOutput(result ?? "(Python executado com sucesso)","python");
+  } catch(err) {
+    logOutput("Erro: "+err,"error",true);
+  }
+}
+
+/* -------------------- Combinar execução -------------------- */
+async function runAll() {
+  outputDiv.innerHTML = "";
+  outputQueue = [];
+  runJS();
+  await runPython();
+}
+
+/* -------------------- Outros botões -------------------- */
+function clearOutput(){ outputDiv.innerHTML=""; outputQueue=[]; }
+function toggleTheme() { 
+  darkTheme = !darkTheme; 
+  document.body.classList.toggle("dark",darkTheme); 
+  document.body.classList.toggle("light",!darkTheme);
+}
+function copyOutput() { navigator.clipboard.writeText(outputDiv.innerText); alert("Output copiado!"); }
+
+/* -------------------- Eventos -------------------- */
+document.getElementById("run-js").onclick = runJS;
+document.getElementById("run-python").onclick = runPython;
+document.getElementById("run-all").onclick = runAll;
+document.getElementById("clear-output").onclick = clearOutput;
+document.getElementById("toggle-theme").onclick = toggleTheme;
+document.getElementById("copy-output").onclick = copyOutput;
+</script>
+</body>
+</html>

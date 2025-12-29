@@ -1,0 +1,63 @@
+:root {
+  --primary: #6366f1;
+  --python: #3776ab;
+  --javascript: #f7df1e;
+  --background: #f9fafb;
+}
+
+body {
+  margin: 0;
+  font-family: 'Segoe UI', sans-serif;
+  background-color: var(--background);
+}
+
+header {
+  display: flex;
+  align-items: center;
+  padding: 10px;
+  background: #fff;
+  gap: 10px;
+}
+
+.editor-container {
+  display: flex;
+  padding: 20px;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.pane {
+  flex: 1;
+  min-width: 300px;
+  background: #fff;
+  border-radius: 8px;
+  padding: 10px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+.pane-header {
+  font-weight: bold;
+  margin-bottom: 10px;
+}
+
+.CodeMirror {
+  height: 200px;
+  border: 1px solid #ddd;
+  font-size: 14px;
+}
+
+button {
+  padding: 5px 10px;
+  border: none;
+  border-radius: 4px;
+  background: var(--primary);
+  color: #fff;
+  cursor: pointer;
+}
+
+.output-panel {
+  margin: 20px;
+  background: #fff;
+  padding: 10px;
+  border-radius: 8px;
+}
